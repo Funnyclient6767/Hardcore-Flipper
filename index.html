@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flip finder for Old School RuneScape</title>
+<style>
+:root{
+  --bg:#f3f4f1;--surface:#fff;--line:#d5d9d4;--text:#1d2226;--muted:#5d6762;
+  --accent:#8a6400;--accent-bg:#f3e7c4;--good:#1f7a3d;--warn:#a35a00;--focus:#1d5fd1;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16181a;--surface:#1f2326;--line:#343b3f;--text:#e6e2d6;--muted:#9aa39f;
+    --accent:#e0b13a;--accent-bg:#2c2813;--good:#6fcf8a;--warn:#e8a04a;--focus:#7aa7ff;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:1060px;margin:0 auto;padding:32px 16px 48px}
+h1{font:600 clamp(1.7rem,4vw,2.4rem)/1.15 Georgia,"Times New Roman",serif;margin:0 0 6px}
+.sub{color:var(--muted);margin:0 0 24px;max-width:62ch}
+.controls{display:flex;flex-wrap:wrap;gap:16px;align-items:end;background:var(--surface);
+  border:1px solid var(--line);border-radius:8px;padding:16px}
+label{display:flex;flex-direction:column;gap:4px;font-size:.88rem;color:var(--muted)}
+input,select,button{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);
+  border-radius:6px;padding:8px 10px}
+input{width:110px}
+button{cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+button:disabled{opacity:.6;cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#status{margin:16px 2px;color:var(--muted);min-height:1.5em}
+#status.err{color:#c0392b}
+#best{background:var(--accent-bg);border-left:4px solid var(--accent);border-radius:4px;
+  padding:12px 16px;margin:0 0 16px}
+#best[hidden]{display:none}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:820px}
+th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tbody tr:last-child td{border-bottom:0}
+th{font-weight:600;font-size:.9rem}
+th button{all:unset;cursor:pointer;display:inline-block;padding:2px 0}
+th button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+th[aria-sort="ascending"] button::after{content:" \25B2";font-size:.7em}
+th[aria-sort="descending"] button::after{content:" \25BC";font-size:.7em}
+td.good{color:var(--good);font-weight:600}
+td.old{color:var(--warn)}
+.note{color:var(--muted);font-size:.88rem;margin-top:16px;max-width:75ch}
+</style>
+</head>
+<body>
+<main>
+  <h1>Flip finder</h1>
+  <p class="sub">Finds items you can buy low and sell high on the Grand Exchange, with the 2% sale tax already taken off. Prices come live from the OSRS Wiki.</p>
+
+  <div class="controls">
+    <label>World
+      <select id="world">
+        <option value="hc">Hardcore</option>
+        <option value="main">Main game</option>
+      </select>
+    </label>
+    <label>Time window
+      <select id="hours">
+        <option value="1">1 hour</option>
+        <option value="2">2 hours</option>
+        <option value="4" selected>4 hours</option>
+        <option value="8">8 hours</option>
+        <option value="12">12 hours</option>
+      </select>
+    </label>
+    <label>Cash to spend (gp, 0 for no limit)
+      <input id="budget" type="number" min="0" step="1000" value="0">
+    </label>
+    <label>Minimum profit each (gp)
+      <input id="minMargin" type="number" min="0" step="10" value="50">
+    </label>
+    <label>Minimum return (%)
+      <input id="minRoi" type="number" min="0" step="0.5" value="2">
+    </label>
+    <label>Minimum traded (both sides)
+      <input id="minVol" type="number" min="0" step="10" value="20">
+    </label>
+    <label>Newest price older than (minutes)
+      <input id="maxAge" type="number" min="1" step="10" value="120">
+    </label>
+    <label>Rows to show
+      <input id="top" type="number" min="1" max="200" value="25">
+    </label>
+    <button class="primary" id="refresh" type="button">Refresh prices</button>
+  </div>
+
+  <div id="status" role="status" aria-live="polite"></div>
+  <p id="best" hidden></p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+
+  <p class="note">Buy at is the price instant sellers got, and sell at is the price instant buyers paid, so your offers need to sit around those prices to fill. Profit each is the sell price minus the buy price minus the 2% sale tax (rounded down, capped at 5,000,000, none under 50 gp, bonds exempt). Other tax-exempt items aren’t listed here, so their real profit is a little higher. “Traded” is the smaller of the buy-side and sell-side trade counts over the window, which shows how easily you can get in and out. Price age is how old the older of the two prices is. Old or one-off trades can make a flip look better than it is, so check the offers in game before you buy.</p>
+</main>
+
+<script>
+const MAIN = "https://prices.runescape.wiki/api/v1/osrs/";
+const HC = "https://prices.runescape.wiki/api/v2/osrs-hc/";
+const BOND = "13190";
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n).toLocaleString("en-GB");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const tax = (price, id) => (id === BOND || price < 50) ? 0 : Math.min(Math.floor(price * 0.02), 5000000);
+const hourly = new Map();
+
+let mapping = null, all = [], winH = 4, sortKey = "total", desc = true;
+
+const cols = h => [
+  ["name", "Item"], ["buy", "Buy at"], ["sell", "Sell at"], ["margin", "Profit each"],
+  ["roi", "Return"], ["volume", "Traded in " + h + "h"], ["limit", "Buy limit"],
+  ["age", "Price age"], ["total", "Profit over " + h + "h"]
+];
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("Request failed (" + r.status + ") for " + url);
+  return r.json();
+}
+
+async function load() {
+  const base = $("world").value === "hc" ? HC : MAIN;
+  const btn = $("refresh");
+  btn.disabled = true;
+  setStatus("Loading prices…");
+  try {
+    if (!mapping) {
+      const list = await getJSON(MAIN + "mapping");
+      mapping = Object.fromEntries(list.map(i => [i.id, i]));
+    }
+    const H = +$("hours").value;
+    const hour = Math.floor(Date.now() / 3600000) * 3600;
+    const hourData = k => {
+      const key = base + "|" + (hour - 3600 * k);
+      if (!hourly.has(key)) {
+        hourly.set(key, getJSON(base + "1h?timestamp=" + (hour - 3600 * k))
+          .catch(e => { hourly.delete(key); throw e; }));
+      }
+      return hourly.get(key);
+    };
+    const [latest, ...hours] = await Promise.all([
+      getJSON(base + "latest"),
+      ...Array.from({ length: H }, (_, i) => hourData(i + 1))
+    ]);
+    winH = H;
+    const sellSide = {}, buySide = {};
+    for (const h of hours) {
+      for (const [id, d] of Object.entries(h.data || {})) {
+        buySide[id] = (buySide[id] || 0) + (d.highPriceVolume || 0);
+        sellSide[id] = (sellSide[id] || 0) + (d.lowPriceVolume || 0);
+      }
+    }
+    const now = Math.floor(Date.now() / 1000);
+    all = [];
+    for (const [id, p] of Object.entries(latest.data)) {
+      const it = mapping[id];
+      if (!it || !p.high || !p.low || p.high <= p.low) continue;
+      const margin = p.high - p.low - tax(p.high, id);
+      if (margin <= 0) continue;
+      const oldest = Math.min(p.highTime || 0, p.lowTime || 0);
+      all.push({
+        name: it.name, buy: p.low, sell: p.high, margin,
+        roi: margin / p.low * 100,
+        volume: Math.min(buySide[id] || 0, sellSide[id] || 0),
+        limit: it.limit || 0,
+        age: oldest ? now - oldest : Infinity
+      });
+    }
+    setStatus("Showing " + ($("world").value === "hc" ? "hardcore" : "main game") +
+      " prices. Updated " + new Date().toLocaleTimeString() + ".");
+    render();
+  } catch (e) {
+    all = [];
+    render();
+    setStatus("Couldn’t load prices. Try switching the world or refreshing. (" + e.message + ")", true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function setStatus(msg, isErr) {
+  const s = $("status");
+  s.textContent = msg;
+  s.className = isErr ? "err" : "";
+}
+
+function fmtAge(s) {
+  if (!isFinite(s)) return "unknown";
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + "m";
+  return Math.floor(s / 3600) + "h " + Math.round(s % 3600 / 60) + "m";
+}
+
+function render() {
+  const budget = +$("budget").value || 0;
+  const minMargin = +$("minMargin").value || 0;
+  const minRoi = +$("minRoi").value || 0;
+  const minVol = +$("minVol").value || 0;
+  const maxAge = (+$("maxAge").value || 0) * 60;
+  const top = Math.max(1, +$("top").value || 25);
+
+  for (const r of all) {
+    const cap = r.limit ? r.limit * Math.ceil(winH / 4) : r.volume;
+    let qty = Math.min(cap, r.volume);
+    if (budget) qty = Math.min(qty, Math.floor(budget / r.buy));
+    r.qty = qty;
+    r.total = r.margin * qty;
+  }
+  let rows = all.filter(r => r.margin >= minMargin && r.roi >= minRoi && r.volume >= minVol &&
+    r.age <= maxAge && r.qty >= 1);
+  const matched = rows.length > 0;
+  if (!matched) rows = all.filter(r => r.qty >= 1);
+
+  const best = $("best");
+  if (matched) {
+    const pick = rows.slice().sort((a, b) => b.total - a.total)[0];
+    const span = winH + (winH === 1 ? " hour" : " hours");
+    best.hidden = false;
+    best.textContent = "Best for " + span + ": " + pick.name + ". Buy at " + fmt(pick.buy) +
+      ", sell at " + fmt(pick.sell) + ", " + fmt(pick.margin) + " gp profit each. Up to " +
+      fmt(pick.total) + " gp over " + span + " (" + fmt(pick.qty) + " items, " + fmt(pick.qty * pick.buy) + " gp to buy).";
+  } else if (all.length) {
+    best.hidden = false;
+    best.textContent = "Nothing meets your filters, so this shows every flip with a profit. Lower the minimums, raise your cash limit, or allow older prices.";
+  } else {
+    best.hidden = true;
+  }
+
+  rows.sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    const c = typeof x === "string" ? x.localeCompare(y) : (x === y ? 0 : x - y);
+    return desc ? -c : c;
+  });
+  rows = rows.slice(0, top);
+
+  $("head").innerHTML = cols(winH).map(([k, label]) =>
+    '<th scope="col"' + (k === sortKey ? ' aria-sort="' + (desc ? "descending" : "ascending") + '"' : "") +
+    '><button type="button" data-k="' + k + '">' + label + "</button></th>").join("");
+  $("body").innerHTML = rows.length ? rows.map(r =>
+    "<tr><td>" + esc(r.name) + "</td><td>" + fmt(r.buy) + "</td><td>" + fmt(r.sell) +
+    '</td><td class="good">' + fmt(r.margin) + "</td><td>" + r.roi.toFixed(1) + "%</td><td>" +
+    fmt(r.volume) + "</td><td>" + (r.limit ? fmt(r.limit) : "?") +
+    '</td><td' + (r.age > 3600 ? ' class="old"' : "") + ">" + fmtAge(r.age) +
+    "</td><td>" + fmt(r.total) + "</td></tr>").join("")
+    : '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No flips to show.</td></tr>';
+}
+
+$("head").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]");
+  if (!b) return;
+  const k = b.dataset.k;
+  if (k === sortKey) desc = !desc; else { sortKey = k; desc = k !== "name" && k !== "age"; }
+  render();
+});
+["budget", "minMargin", "minRoi", "minVol", "maxAge", "top"].forEach(id => $(id).addEventListener("input", render));
+$("world").addEventListener("change", load);
+$("hours").addEventListener("change", load);
+$("refresh").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>
