@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Alch finder for Old School RuneScape</title>
+<title>Flip finder for Old School RuneScape</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
@@ -11,21 +11,21 @@
 :root{
   --bg:#2b2519;--panel:#3b3427;--panel2:#352f23;--edge:#17120a;--bevel:#5c4e36;
   --text:#eadfbc;--muted:#bfae7d;--orange:#ff981f;--gold:#ffd83a;--good:#2ee62e;
-  --focus:#ffff00;--head:"Pixelify Sans","Trebuchet MS",system-ui,sans-serif;
+  --warn:#ff8a4c;--focus:#ffff00;--head:"Pixelify Sans","Trebuchet MS",system-ui,sans-serif;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-h1,h2,button,th,.rune strong{font-variant-ligatures:none;font-feature-settings:"liga" 0,"clig" 0,"calt" 0;text-rendering:optimizeSpeed}
+h1,button,th{font-variant-ligatures:none;font-feature-settings:"liga" 0,"clig" 0,"calt" 0;text-rendering:optimizeSpeed}
 body{margin:0;color:var(--text);
   background:var(--bg) repeating-linear-gradient(45deg,rgba(0,0,0,.10) 0 2px,transparent 2px 7px);
   font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
-main{max-width:980px;margin:0 auto;padding:32px 16px 48px}
+main{max-width:1060px;margin:0 auto;padding:32px 16px 48px}
 h1{font:700 clamp(2rem,5vw,2.8rem)/1.1 var(--head);margin:0 0 8px;color:var(--orange);
   text-shadow:2px 2px 0 #000;display:flex;align-items:center;gap:12px}
 h1::before{content:"";flex:none;width:.7em;height:.7em;border-radius:50%;border:2px solid #7a5a10;
   background:radial-gradient(circle at 35% 30%,#fff3a0,#ffd83a 45%,#b8860b);box-shadow:1px 1px 0 #000}
-.sub{color:var(--muted);margin:0 0 24px;max-width:60ch}
-.controls,.tablewrap,.rune{background:var(--panel);border:2px solid var(--edge);border-radius:3px;
+.sub{color:var(--muted);margin:0 0 24px;max-width:62ch}
+.controls,.tablewrap{background:var(--panel);border:2px solid var(--edge);border-radius:3px;
   box-shadow:inset 0 0 0 2px var(--bevel),0 3px 0 #0d0a05}
 .controls{display:flex;flex-wrap:wrap;gap:16px;align-items:end;padding:18px}
 label{display:flex;flex-direction:column;gap:4px;font-size:.88rem;color:var(--muted)}
@@ -40,19 +40,22 @@ button.primary{color:#fff;background:linear-gradient(#a37d22,#6b5114)}
 button.primary:hover:not(:disabled){background:linear-gradient(#b88f2a,#7b5d18)}
 button:disabled{opacity:.6;cursor:default}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.rune{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin:16px 0 0;padding:12px 18px}
-.rune h2{font:500 1.05rem/1.4 var(--head);margin:0;color:var(--orange);text-shadow:1px 1px 0 #000}
-.rune strong{font:700 1.7rem/1.2 var(--head);color:var(--gold);text-shadow:2px 2px 0 #000}
-.rune span{color:var(--muted);font-size:.9rem}
 #status{margin:16px 2px;color:var(--muted);min-height:1.5em}
 #status.err{color:#ff6b5a}
-#best{background:#d6c9a4;color:#2b1d0a;border:3px solid #6b4f1d;border-radius:3px;
+#best,#pbest{background:#d6c9a4;color:#2b1d0a;border:3px solid #6b4f1d;border-radius:3px;
   box-shadow:inset 0 0 0 1px #f0e6c4,0 2px 0 #0d0a05;padding:12px 16px;margin:0 0 16px;font-weight:600}
-#best[hidden]{display:none}
+#best[hidden],#pbest[hidden]{display:none}
+[hidden]{display:none!important}
+.tabs{display:flex;gap:6px;margin:24px 0 0;border-bottom:3px solid var(--bevel)}
+.tabs button{border:2px solid var(--edge);border-bottom:0;border-radius:3px 3px 0 0;padding:9px 20px;
+  color:var(--muted);background:linear-gradient(#4c4433,#352e21);box-shadow:inset 0 0 0 1px var(--bevel)}
+.tabs button[aria-selected="true"]{color:var(--orange);background:linear-gradient(#6a5c40,#473e2b);
+  margin-bottom:-3px;padding-bottom:12px}
+.filters{display:flex;flex-wrap:wrap;gap:16px;align-items:end;padding:16px 0}
 .tablewrap{overflow-x:auto}
-table{border-collapse:collapse;width:100%;min-width:640px}
+table{border-collapse:collapse;width:100%;min-width:820px}
 th,td{padding:10px 12px;text-align:right;border-bottom:1px solid #251f14;white-space:nowrap}
-th:first-child,td:first-child{text-align:left}
+th:first-child,td:first-child,th.l,td.l{text-align:left}
 thead tr{background:#241f14}
 th{font-family:var(--head);font-weight:500;font-size:.95rem;color:var(--orange);text-shadow:1px 1px 0 #000}
 th button{all:unset;cursor:pointer;display:inline-block;padding:2px 0}
@@ -62,14 +65,16 @@ th[aria-sort="descending"] button::after{content:" \25BC";font-size:.7em}
 tbody tr:nth-child(even){background:var(--panel2)}
 tbody tr:hover{background:#4a4232}
 tbody tr:last-child td{border-bottom:0}
-td.profit{color:var(--good);font-weight:700;text-shadow:1px 1px 0 #000}
-.note{color:var(--muted);font-size:.88rem;margin-top:16px;max-width:70ch}
+td.good{color:var(--good);font-weight:700;text-shadow:1px 1px 0 #000}
+td.old{color:var(--warn)}
+td.recipe{white-space:normal;min-width:220px;color:var(--muted)}
+.note{color:var(--muted);font-size:.88rem;margin-top:16px;max-width:75ch}
 </style>
 </head>
 <body>
 <main>
-  <h1>Alch f&zwnj;inder</h1>
-  <p class="sub">Lists items that make a profit when you high alch them, after paying for the nature rune. Prices come live from the OSRS Wiki.</p>
+  <h1>Flip f&zwnj;inder</h1>
+  <p class="sub">Finds items you can buy low and sell high on the Grand Exchange. Prices come live from the OSRS Wiki.</p>
 
   <div class="controls">
     <label>World
@@ -77,9 +82,6 @@ td.profit{color:var(--good);font-weight:700;text-shadow:1px 1px 0 #000}
         <option value="hc">Hardcore</option>
         <option value="main">Main game</option>
       </select>
-    </label>
-    <label>Minimum profit per cast
-      <input id="minProfit" type="number" min="0" step="10" value="100">
     </label>
     <label>Time window
       <select id="hours">
@@ -90,8 +92,8 @@ td.profit{color:var(--good);font-weight:700;text-shadow:1px 1px 0 #000}
         <option value="12">12 hours</option>
       </select>
     </label>
-    <label>Minimum traded in that time
-      <input id="minVol" type="number" min="0" step="10" value="50">
+    <label>Cash to spend (gp, 0 for no limit)
+      <input id="budget" type="number" min="0" step="1000" value="0">
     </label>
     <label>Rows to show
       <input id="top" type="number" min="1" max="200" value="25">
@@ -99,41 +101,93 @@ td.profit{color:var(--good);font-weight:700;text-shadow:1px 1px 0 #000}
     <button class="primary" id="refresh" type="button">Refresh prices</button>
   </div>
 
-  <section class="rune" aria-labelledby="runeTitle">
-    <h2 id="runeTitle">Nature rune price</h2>
-    <strong id="runePrice">–</strong>
-    <span id="runeDetail">Loading…</span>
-  </section>
-
   <div id="status" role="status" aria-live="polite"></div>
-  <p id="best" hidden></p>
 
-  <div class="tablewrap">
-    <table>
-      <thead><tr id="head"></tr></thead>
-      <tbody id="body"></tbody>
-    </table>
+  <div class="tabs" role="tablist" aria-label="Tools">
+    <button type="button" role="tab" id="tab-flip" aria-selected="true" aria-controls="panel-flip">Flips</button>
+    <button type="button" role="tab" id="tab-prod" aria-selected="false" aria-controls="panel-prod">Production</button>
   </div>
 
-  <p class="note">Profit over the time window assumes you cast about 1,200 alchs per hour. It is capped by the item’s Grand Exchange buy limit (which resets every 4 hours) and by how many were traded in that window. Item values and buy limits are the same in every world, so they always come from the main game data.</p>
+  <section id="panel-flip" role="tabpanel" aria-labelledby="tab-flip">
+    <div class="filters">
+    <label>Minimum profit each (gp)
+      <input id="minMargin" type="number" min="0" step="10" value="50">
+    </label>
+    <label>Minimum return (%)
+      <input id="minRoi" type="number" min="0" step="0.5" value="2">
+    </label>
+    <label>Minimum traded (both sides)
+      <input id="minVol" type="number" min="0" step="10" value="20">
+    </label>
+    <label>Newest price older than (minutes)
+      <input id="maxAge" type="number" min="1" step="10" value="120">
+    </label>
+    </div>
+    <p id="best" hidden></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr id="head"></tr></thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+  <p class="note">Buy at is the price instant sellers got, and sell at is the price instant buyers paid, so your offers need to sit around those prices to fill. Profit each is the sell price minus the buy price. “Traded” is the smaller of the buy-side and sell-side trade counts over the window, which shows how easily you can get in and out. Price age is how old the older of the two prices is. Old or one-off trades can make a flip look better than it is, so check the offers in game before you buy.</p>
+  </section>
+
+  <section id="panel-prod" role="tabpanel" aria-labelledby="tab-prod" hidden>
+    <div class="filters">
+      <label>Skill
+        <select id="skill">
+          <option value="all">All skills</option>
+          <option>Herblore</option><option>Cooking</option><option>Smithing</option>
+          <option>Crafting</option><option>Fletching</option>
+        </select>
+      </label>
+      <label>Buy ingredients
+        <select id="buyMode">
+          <option value="patient" selected>With offers (low price)</option>
+          <option value="instant">Instantly (high price)</option>
+        </select>
+      </label>
+      <label>Sell products
+        <select id="sellMode">
+          <option value="instant" selected>Instantly (low price)</option>
+          <option value="patient">With offers (high price)</option>
+        </select>
+      </label>
+      <label>Minimum profit per make (gp)
+        <input id="pMinProfit" type="number" min="0" step="10" value="50">
+      </label>
+      <label>Minimum makes in window
+        <input id="pMinCrafts" type="number" min="0" step="10" value="10">
+      </label>
+    </div>
+    <p id="pbest" hidden></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr id="phead"></tr></thead>
+        <tbody id="pbody"></tbody>
+      </table>
+    </div>
+    <p class="note">Each row is one make: the ingredients in the recipe column turn into the product. Cost uses the buying style you pick, and the sell value uses the selling style you pick. Makes in window is limited by the buy limits and trade counts of every ingredient and the product, and by your cash if you set a limit. Potions are made as 3-dose potions. This ignores burn and failure rates, minor extras like thread, and the value of the experience. <span id="pmissing"></span></p>
+  </section>
 </main>
 
 <script>
 const MAIN = "https://prices.runescape.wiki/api/v1/osrs/";
 const HC = "https://prices.runescape.wiki/api/v2/osrs-hc/";
-const NATURE = "561";
-const CASTS_PER_HOUR = 1200;
-const hourly = new Map();
-const cols = h => [
-  ["name", "Item"], ["buy", "Buy price"], ["alch", "Alch value"], ["profit", "Profit per cast"],
-  ["volume", "Traded in " + h + "h"], ["limit", "Buy limit"], ["total", "Profit over " + h + "h"]
-];
 const $ = id => document.getElementById(id);
 const fmt = n => Number(n).toLocaleString("en-GB");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hourly = new Map();
 
-let mapping = null, all = [], nat = 0, source = "", winH = 4;
-let sortKey = "total", desc = true;
+let mapping = null, all = [], winH = 4, sortKey = "total", desc = true;
+let market = null, byName = {}, psortKey = "total", pdesc = true;
+
+const cols = h => [
+  ["name", "Item"], ["buy", "Buy at"], ["sell", "Sell at"], ["margin", "Profit each"],
+  ["roi", "Return"], ["volume", "Traded in " + h + "h"], ["limit", "Buy limit"],
+  ["age", "Price age"], ["total", "Profit over " + h + "h"]
+];
 
 async function getJSON(url) {
   const r = await fetch(url);
@@ -150,6 +204,7 @@ async function load() {
     if (!mapping) {
       const list = await getJSON(MAIN + "mapping");
       mapping = Object.fromEntries(list.map(i => [i.id, i]));
+      byName = Object.fromEntries(list.map(i => [i.name.toLowerCase(), i]));
     }
     const H = +$("hours").value;
     const hour = Math.floor(Date.now() / 3600000) * 3600;
@@ -166,44 +221,37 @@ async function load() {
       ...Array.from({ length: H }, (_, i) => hourData(i + 1))
     ]);
     winH = H;
-    const prices = latest.data;
-    const vol = {};
+    const sellSide = {}, buySide = {};
     for (const h of hours) {
       for (const [id, d] of Object.entries(h.data || {})) {
-        vol[id] = (vol[id] || 0) + (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
+        buySide[id] = (buySide[id] || 0) + (d.highPriceVolume || 0);
+        sellSide[id] = (sellSide[id] || 0) + (d.lowPriceVolume || 0);
       }
     }
-    let nr = prices[NATURE] || {};
-    let fromMain = false;
-    if (!nr.high) {
-      nr = (await getJSON(MAIN + "latest")).data[NATURE];
-      fromMain = true;
-    }
-    nat = nr.high;
-    $("runePrice").textContent = fmt(nat) + " gp";
-    $("runeDetail").textContent = "Buy " + fmt(nr.high) + " gp, sell " + (nr.low ? fmt(nr.low) : "?") +
-      " gp (" + (fromMain ? "main game price, none listed for this world" : $("world").value === "hc" ? "hardcore" : "main game") + ")";
+    market = { prices: latest.data, buy: buySide, sell: sellSide };
+    const now = Math.floor(Date.now() / 1000);
     all = [];
-    for (const [id, p] of Object.entries(prices)) {
+    for (const [id, p] of Object.entries(latest.data)) {
       const it = mapping[id];
-      if (!it || !it.highalch || !p.high) continue;
-      const profit = it.highalch - p.high - nat;
-      if (profit <= 0) continue;
-      const volume = vol[id] || 0;
-      const limit = it.limit || 0;
+      if (!it || !p.high || !p.low || p.high <= p.low) continue;
+      const margin = p.high - p.low;
+      if (margin <= 0) continue;
+      const oldest = Math.min(p.highTime || 0, p.lowTime || 0);
       all.push({
-        name: it.name, buy: p.high, alch: it.highalch, profit, volume, limit,
-        total: limit ? profit * Math.min(limit * Math.ceil(H / 4), CASTS_PER_HOUR * H, volume) : 0
+        name: it.name, buy: p.low, sell: p.high, margin,
+        roi: margin / p.low * 100,
+        volume: Math.min(buySide[id] || 0, sellSide[id] || 0),
+        limit: it.limit || 0,
+        age: oldest ? now - oldest : Infinity
       });
     }
-    source = $("world").value === "hc" ? "hardcore" : "main game";
-    setStatus("Showing " + source + " prices. Updated " + new Date().toLocaleTimeString() + ".");
-    render();
+    setStatus("Showing " + ($("world").value === "hc" ? "hardcore" : "main game") +
+      " prices. Updated " + new Date().toLocaleTimeString() + ".");
+    renderAll();
   } catch (e) {
     all = [];
-    $("runePrice").textContent = "–";
-    $("runeDetail").textContent = "Unavailable";
-    render();
+    market = null;
+    renderAll();
     setStatus("Couldn’t load prices. Try switching the world or refreshing. (" + e.message + ")", true);
   } finally {
     btn.disabled = false;
@@ -216,55 +264,216 @@ function setStatus(msg, isErr) {
   s.className = isErr ? "err" : "";
 }
 
-function render() {
-  const minProfit = +$("minProfit").value || 0;
-  const minVol = +$("minVol").value || 0;
-  const top = Math.max(1, +$("top").value || 25);
-  let rows = all.filter(r => r.profit >= minProfit && r.volume >= minVol);
-  const best = $("best");
-  let fallback = false;
-  if (!rows.length && all.length) {
-    rows = all.slice(); fallback = true;
-  }
-  rows.sort((a, b) => {
-    const x = a[sortKey], y = b[sortKey];
-    const c = typeof x === "string" ? x.localeCompare(y) : x - y;
-    return desc ? -c : c;
-  });
-  rows = rows.slice(0, top);
+function fmtAge(s) {
+  if (!isFinite(s)) return "unknown";
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + "m";
+  return Math.floor(s / 3600) + "h " + Math.round(s % 3600 / 60) + "m";
+}
 
-  if (all.length && !fallback) {
-    const pick = all.filter(r => r.profit >= minProfit && r.volume >= minVol)
-      .sort((a, b) => b.total - a.total)[0];
+function render() {
+  const budget = +$("budget").value || 0;
+  const minMargin = +$("minMargin").value || 0;
+  const minRoi = +$("minRoi").value || 0;
+  const minVol = +$("minVol").value || 0;
+  const maxAge = (+$("maxAge").value || 0) * 60;
+  const top = Math.max(1, +$("top").value || 25);
+
+  for (const r of all) {
+    const cap = r.limit ? r.limit * Math.ceil(winH / 4) : r.volume;
+    let qty = Math.min(cap, r.volume);
+    if (budget) qty = Math.min(qty, Math.floor(budget / r.buy));
+    r.qty = qty;
+    r.total = r.margin * qty;
+  }
+  let rows = all.filter(r => r.margin >= minMargin && r.roi >= minRoi && r.volume >= minVol &&
+    r.age <= maxAge && r.qty >= 1);
+  const matched = rows.length > 0;
+  if (!matched) rows = all.filter(r => r.qty >= 1);
+
+  const best = $("best");
+  if (matched) {
+    const pick = rows.slice().sort((a, b) => b.total - a.total)[0];
     const span = winH + (winH === 1 ? " hour" : " hours");
     best.hidden = false;
-    best.textContent = "Best for " + span + ": " + pick.name + ". " + fmt(pick.profit) +
-      " gp profit per cast, up to " + fmt(pick.total) + " gp over " + span + ".";
-  } else if (fallback) {
+    best.textContent = "Best for " + span + ": " + pick.name + ". Buy at " + fmt(pick.buy) +
+      ", sell at " + fmt(pick.sell) + ", " + fmt(pick.margin) + " gp profit each. Up to " +
+      fmt(pick.total) + " gp over " + span + " (" + fmt(pick.qty) + " items, " + fmt(pick.qty * pick.buy) + " gp to buy).";
+  } else if (all.length) {
     best.hidden = false;
-    best.textContent = "Nothing meets your filters, so this shows every profitable item. Lower the minimums to match what’s available.";
+    best.textContent = "Nothing meets your filters, so this shows every flip with a profit. Lower the minimums, raise your cash limit, or allow older prices.";
   } else {
     best.hidden = true;
   }
+
+  rows.sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    const c = typeof x === "string" ? x.localeCompare(y) : (x === y ? 0 : x - y);
+    return desc ? -c : c;
+  });
+  rows = rows.slice(0, top);
 
   $("head").innerHTML = cols(winH).map(([k, label]) =>
     '<th scope="col"' + (k === sortKey ? ' aria-sort="' + (desc ? "descending" : "ascending") + '"' : "") +
     '><button type="button" data-k="' + k + '">' + label + "</button></th>").join("");
   $("body").innerHTML = rows.length ? rows.map(r =>
-    "<tr><td>" + esc(r.name) + "</td><td>" + fmt(r.buy) + "</td><td>" + fmt(r.alch) +
-    '</td><td class="profit">' + fmt(r.profit) + "</td><td>" + fmt(r.volume) +
-    "</td><td>" + (r.limit ? fmt(r.limit) : "?") + "</td><td>" + fmt(r.total) + "</td></tr>").join("")
-    : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">No profitable items to show.</td></tr>';
+    "<tr><td>" + esc(r.name) + "</td><td>" + fmt(r.buy) + "</td><td>" + fmt(r.sell) +
+    '</td><td class="good">' + fmt(r.margin) + "</td><td>" + r.roi.toFixed(1) + "%</td><td>" +
+    fmt(r.volume) + "</td><td>" + (r.limit ? fmt(r.limit) : "?") +
+    '</td><td' + (r.age > 3600 ? ' class="old"' : "") + ">" + fmtAge(r.age) +
+    "</td><td>" + fmt(r.total) + "</td></tr>").join("")
+    : '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No flips to show.</td></tr>';
 }
 
 $("head").addEventListener("click", e => {
   const b = e.target.closest("button[data-k]");
   if (!b) return;
   const k = b.dataset.k;
-  if (k === sortKey) desc = !desc; else { sortKey = k; desc = k !== "name"; }
+  if (k === sortKey) desc = !desc; else { sortKey = k; desc = k !== "name" && k !== "age"; }
   render();
 });
-["minProfit", "minVol", "top"].forEach(id => $(id).addEventListener("input", render));
+
+// ---------- Production tab ----------
+const HERBS = [
+  ["Ranarr weed", "Ranarr potion (unf)", "Snape grass", "Prayer potion(3)"],
+  ["Snapdragon", "Snapdragon potion (unf)", "Red spiders' eggs", "Super restore(3)"],
+  ["Toadflax", "Toadflax potion (unf)", "Crushed nest", "Saradomin brew(3)"],
+  ["Dwarf weed", "Dwarf weed potion (unf)", "Wine of zamorak", "Ranging potion(3)"],
+  ["Lantadyme", "Lantadyme potion (unf)", "Potato cactus", "Magic potion(3)"],
+  ["Lantadyme", "Lantadyme potion (unf)", "Dragon scale dust", "Antifire potion(3)"],
+  ["Avantoe", "Avantoe potion (unf)", "Mort myre fungus", "Super energy(3)"],
+  ["Irit leaf", "Irit potion (unf)", "Eye of newt", "Super attack(3)"],
+  ["Kwuarm", "Kwuarm potion (unf)", "Limpwurt root", "Super strength(3)"],
+  ["Cadantine", "Cadantine potion (unf)", "White berries", "Super defence(3)"]
+];
+const RECIPES = [];
+const add = (skill, ins, out, qty = 1) => RECIPES.push({ skill, ins, out: [out, qty] });
+const unfDone = new Set();
+for (const [herb, unf, sec, fin] of HERBS) {
+  if (!unfDone.has(unf)) { unfDone.add(unf); add("Herblore", [[herb, 1], ["Vial of water", 1]], unf); }
+  add("Herblore", [[unf, 1], [sec, 1]], fin);
+  add("Herblore", [[herb, 1], ["Vial of water", 1], [sec, 1]], fin);
+}
+for (const [raw, done] of [["Raw shark", "Shark"], ["Raw karambwan", "Cooked karambwan"],
+  ["Raw anglerfish", "Anglerfish"], ["Raw manta ray", "Manta ray"], ["Raw sea turtle", "Sea turtle"],
+  ["Raw monkfish", "Monkfish"], ["Raw swordfish", "Swordfish"], ["Raw lobster", "Lobster"]]) add("Cooking", [[raw, 1]], done);
+add("Smithing", [["Mithril ore", 1], ["Coal", 4]], "Mithril bar");
+add("Smithing", [["Adamantite ore", 1], ["Coal", 6]], "Adamantite bar");
+add("Smithing", [["Runite ore", 1], ["Coal", 8]], "Runite bar");
+add("Smithing", [["Steel bar", 1]], "Cannonball", 4);
+for (const [n, q] of [["platebody", 5], ["platelegs", 3], ["plateskirt", 3], ["kiteshield", 3], ["chainbody", 3], ["full helm", 3], ["scimitar", 2]])
+  add("Smithing", [["Runite bar", q]], "Rune " + n);
+add("Smithing", [["Adamantite bar", 5]], "Adamant platebody");
+add("Smithing", [["Adamantite bar", 3]], "Adamant platelegs");
+for (const g of ["Sapphire", "Emerald", "Ruby", "Diamond", "Dragonstone", "Onyx"]) add("Crafting", [["Uncut " + g.toLowerCase(), 1]], g);
+for (const c of ["Green", "Blue", "Red", "Black"]) add("Crafting", [[c + " dragon leather", 3]], c + " d'hide body");
+for (const w of ["Magic", "Yew"]) {
+  add("Fletching", [[w + " logs", 1]], w + " longbow (u)");
+  add("Fletching", [[w + " longbow (u)", 1], ["Bow string", 1]], w + " longbow");
+}
+
+const pcols = h => [
+  ["name", "Product", "l"], ["skill", "Skill", "l"], ["recipe", "Recipe", "l"], ["cost", "Cost per make"],
+  ["net", "Sells for"], ["profit", "Profit per make"], ["roi", "Return"],
+  ["crafts", "Makes in " + h + "h"], ["total", "Profit over " + h + "h"]
+];
+
+function renderProd() {
+  const budget = +$("budget").value || 0;
+  const top = Math.max(1, +$("top").value || 25);
+  const skill = $("skill").value, buyMode = $("buyMode").value, sellMode = $("sellMode").value;
+  const minProfit = +$("pMinProfit").value || 0, minCrafts = +$("pMinCrafts").value || 0;
+  const missing = new Set(), list = [];
+  if (market) {
+    const vol = id => (market.buy[id] || 0) + (market.sell[id] || 0);
+    for (const r of RECIPES) {
+      const ins = r.ins.map(([n, q]) => ({ n, q, it: byName[n.toLowerCase()] }));
+      const out = byName[r.out[0].toLowerCase()];
+      const bad = ins.filter(x => !x.it).map(x => x.n);
+      if (!out) bad.push(r.out[0]);
+      if (bad.length) { bad.forEach(b => missing.add(b)); continue; }
+      let cost = 0, crafts = Infinity, ok = true;
+      for (const x of ins) {
+        const p = market.prices[x.it.id];
+        if (!p || !p.high || !p.low) { ok = false; break; }
+        cost += x.q * (buyMode === "instant" ? p.high : p.low);
+        const cap = x.it.limit ? x.it.limit * Math.ceil(winH / 4) : Infinity;
+        crafts = Math.min(crafts, Math.floor(Math.min(cap, vol(x.it.id)) / x.q));
+      }
+      const po = market.prices[out.id];
+      if (!ok || !po || !po.high || !po.low) continue;
+      const sp = sellMode === "instant" ? po.low : po.high;
+      const net = sp * r.out[1];
+      crafts = Math.min(crafts, Math.floor(vol(out.id) / r.out[1]));
+      const profit = net - cost;
+      if (profit <= 0) continue;
+      const afford = budget ? Math.min(crafts, Math.floor(budget / cost)) : crafts;
+      list.push({
+        name: out.name + (r.out[1] > 1 ? " ×" + r.out[1] : ""), skill: r.skill,
+        recipe: ins.map(x => (x.q > 1 ? x.q + " × " : "") + x.it.name).join(" + "),
+        cost, net, profit, roi: profit / cost * 100, crafts, total: profit * Math.max(afford, 0), afford
+      });
+    }
+  }
+  let rows = list.filter(r => (skill === "all" || r.skill === skill) && r.profit >= minProfit &&
+    r.crafts >= minCrafts && r.afford >= 1);
+  const matched = rows.length > 0;
+  if (!matched) rows = list.filter(r => (skill === "all" || r.skill === skill) && r.afford >= 1);
+
+  const best = $("pbest");
+  if (matched) {
+    const pick = rows.slice().sort((a, b) => b.total - a.total)[0];
+    const span = winH + (winH === 1 ? " hour" : " hours");
+    best.hidden = false;
+    best.textContent = "Best for " + span + ": " + pick.name + ". " + fmt(Math.round(pick.profit)) +
+      " gp profit per make, up to " + fmt(Math.round(pick.total)) + " gp over " + span + ".";
+  } else if (list.length) {
+    best.hidden = false;
+    best.textContent = "Nothing meets your filters, so this shows every profitable make. Lower the minimums or raise your cash limit.";
+  } else {
+    best.hidden = true;
+  }
+
+  rows.sort((a, b) => {
+    const x = a[psortKey], y = b[psortKey];
+    const c = typeof x === "string" ? x.localeCompare(y) : (x === y ? 0 : x - y);
+    return pdesc ? -c : c;
+  });
+  rows = rows.slice(0, top);
+  $("phead").innerHTML = pcols(winH).map(([k, label, cls]) =>
+    '<th scope="col"' + (cls ? ' class="' + cls + '"' : "") +
+    (k === psortKey ? ' aria-sort="' + (pdesc ? "descending" : "ascending") + '"' : "") +
+    '><button type="button" data-k="' + k + '">' + label + "</button></th>").join("");
+  $("pbody").innerHTML = rows.length ? rows.map(r =>
+    '<tr><td class="l">' + esc(r.name) + '</td><td class="l">' + r.skill + '</td><td class="l recipe">' +
+    esc(r.recipe) + "</td><td>" + fmt(Math.round(r.cost)) + "</td><td>" + fmt(Math.round(r.net)) +
+    '</td><td class="good">' + fmt(Math.round(r.profit)) + "</td><td>" + r.roi.toFixed(1) + "%</td><td>" +
+    fmt(r.crafts) + "</td><td>" + fmt(Math.round(r.total)) + "</td></tr>").join("")
+    : '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No profitable makes to show.</td></tr>';
+  $("pmissing").textContent = missing.size
+    ? "Skipped because they weren’t found in the price data: " + [...missing].join(", ") + "."
+    : "";
+}
+
+function renderAll() { render(); renderProd(); }
+
+function showTab(which) {
+  for (const t of ["flip", "prod"]) {
+    $("tab-" + t).setAttribute("aria-selected", String(t === which));
+    $("panel-" + t).hidden = t !== which;
+  }
+}
+$("tab-flip").addEventListener("click", () => showTab("flip"));
+$("tab-prod").addEventListener("click", () => showTab("prod"));
+$("phead").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]");
+  if (!b) return;
+  const k = b.dataset.k;
+  if (k === psortKey) pdesc = !pdesc; else { psortKey = k; pdesc = !["name", "skill", "recipe"].includes(k); }
+  renderProd();
+});
+["skill", "buyMode", "sellMode", "pMinProfit", "pMinCrafts"].forEach(id => $(id).addEventListener("input", renderProd));
+["minMargin", "minRoi", "minVol", "maxAge"].forEach(id => $(id).addEventListener("input", render));
+["budget", "top"].forEach(id => $(id).addEventListener("input", renderAll));
 $("world").addEventListener("change", load);
 $("hours").addEventListener("change", load);
 $("refresh").addEventListener("click", load);
