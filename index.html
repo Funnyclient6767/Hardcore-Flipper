@@ -69,6 +69,8 @@ td.good{color:var(--good);font-weight:700;text-shadow:1px 1px 0 #000}
 td.old{color:var(--warn)}
 td.recipe{white-space:normal;min-width:220px;color:var(--muted)}
 .note{color:var(--muted);font-size:.88rem;margin-top:16px;max-width:75ch}
+.ctitle{font:500 1.2rem/1.3 var(--head);color:var(--orange);text-shadow:1px 1px 0 #000;margin:24px 0 8px}
+input.wide{width:190px}
 </style>
 </head>
 <body>
@@ -106,6 +108,7 @@ td.recipe{white-space:normal;min-width:220px;color:var(--muted)}
   <div class="tabs" role="tablist" aria-label="Tools">
     <button type="button" role="tab" id="tab-flip" aria-selected="true" aria-controls="panel-flip">Flips</button>
     <button type="button" role="tab" id="tab-prod" aria-selected="false" aria-controls="panel-prod">Production</button>
+    <button type="button" role="tab" id="tab-clue" aria-selected="false" aria-controls="panel-clue">Clues</button>
   </div>
 
   <section id="panel-flip" role="tabpanel" aria-labelledby="tab-flip">
@@ -169,6 +172,48 @@ td.recipe{white-space:normal;min-width:220px;color:var(--muted)}
       </table>
     </div>
     <p class="note">Each row is one make: the ingredients in the recipe column turn into the product. Cost uses the buying style you pick, and the sell value uses the selling style you pick. Makes in window is limited by the buy limits and trade counts of every ingredient and the product, and by your cash if you set a limit. Potions are made as 3-dose potions. This ignores burn and failure rates, minor extras like thread, and the value of the experience. <span id="pmissing"></span></p>
+  </section>
+  <section id="panel-clue" role="tabpanel" aria-labelledby="tab-clue" hidden>
+    <h2 class="ctitle">Average loot per casket</h2>
+    <p class="note" style="margin-top:0">Reward caskets can’t be traded, so they have no price. These are the expected loot values the Old School Wiki works out from the drop tables, rounded. They use main-game prices from when the wiki last updated them, so they drift and don’t reflect your world. Click a heading to sort.</p>
+    <div class="tablewrap" style="margin-top:12px">
+      <table style="min-width:700px">
+        <thead><tr id="chead"></tr></thead>
+        <tbody id="cbody"></tbody>
+      </table>
+    </div>
+
+    <h2 class="ctitle">Items that drop from clues</h2>
+    <div class="filters">
+      <label>Clue tier
+        <select id="cTier">
+          <option value="all">All tiers</option>
+          <option>Easy</option><option>Medium</option><option>Hard</option><option>Elite</option><option>Master</option>
+        </select>
+      </label>
+      <label>Type
+        <select id="cType">
+          <option value="all">All types</option>
+          <option>Armour</option><option>Weapons</option><option>Ornaments</option><option>Rare</option>
+        </select>
+      </label>
+      <label>Minimum price (gp)
+        <input id="cMin" type="number" min="0" step="1000" value="0">
+      </label>
+      <label>Maximum price (gp, 0 for none)
+        <input id="cMax" type="number" min="0" step="1000" value="0">
+      </label>
+      <label>Search by name
+        <input id="cSearch" class="wide" type="search" placeholder="e.g. rune">
+      </label>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr id="ihead"></tr></thead>
+        <tbody id="ibody"></tbody>
+      </table>
+    </div>
+    <p class="note">Prices are from the world you picked above and show the middle of the buy and sell price. Only a selection of the better known clue items is listed. Items with no recent trades in this world aren’t shown. <span id="imissing"></span></p>
   </section>
 </main>
 
@@ -454,10 +499,137 @@ function renderProd() {
     : "";
 }
 
-function renderAll() { render(); renderProd(); }
+
+// ---------- Clues tab ----------
+const CLUE_TIERS = [
+  ["Beginner", 2, 1565, 3130, 0, ""],
+  ["Easy", 3, 9700, 29000, 1 / 50, ""],
+  ["Medium", 4, 40700, 162800, 1 / 30, "Mostly from ranger boots. About 26,000 without them."],
+  ["Hard", 5, 24700, 123500, 1 / 15, ""],
+  ["Elite", 5, 49600, 248000, 1 / 5, "About 318,000 with a Mimic."],
+  ["Master", 6, 118600, 711500, 0, "About 959,000 with a Mimic. 3rd age items make up much of this."]
+].map(([tier, rolls, roll, casket, mc, note]) => ({ tier, rolls, roll, casket, mc, note }));
+const HEM = ["Hard", "Elite", "Master"];
+const CLUE_ITEMS = [
+  [["Easy"], "Armour", ["Black platebody (t)", "Black platelegs (t)", "Black full helm (t)", "Black kiteshield (t)",
+    "Black platebody (g)", "Black platelegs (g)", "Black full helm (g)", "Black kiteshield (g)"]],
+  [["Medium"], "Armour", ["Ranger boots", "Wizard boots", "Adamant platebody (t)", "Adamant platelegs (t)",
+    "Adamant full helm (t)", "Adamant kiteshield (t)", "Adamant platebody (g)", "Adamant platelegs (g)",
+    "Adamant full helm (g)", "Adamant kiteshield (g)", "Green d'hide body (g)", "Green d'hide chaps (g)",
+    "Blue d'hide body (g)", "Blue d'hide chaps (g)", "Highwayman mask", "Black cavalier", "Dark cavalier", "Tan cavalier"]],
+  [["Hard"], "Armour", ["Rune platebody (t)", "Rune platelegs (t)", "Rune full helm (t)", "Rune kiteshield (t)",
+    "Rune plateskirt (t)", "Rune platebody (g)", "Rune platelegs (g)", "Rune full helm (g)", "Rune kiteshield (g)",
+    "Rune plateskirt (g)", "Saradomin full helm", "Saradomin platebody", "Saradomin platelegs", "Saradomin kiteshield",
+    "Zamorak full helm", "Zamorak platebody", "Zamorak platelegs", "Zamorak kiteshield", "Guthix full helm",
+    "Guthix platebody", "Guthix platelegs", "Guthix kiteshield", "Robin hood hat", "Amulet of glory (t4)",
+    "Enchanted hat", "Enchanted top", "Enchanted robe"]],
+  [["Hard"], "Weapons", ["Magic comp bow"]],
+  [["Elite"], "Armour", ["Royal crown"]],
+  [["Elite"], "Weapons", ["Royal sceptre"]],
+  [["Elite"], "Ornaments", ["Dragon full helm ornament kit", "Dragon chainbody ornament kit",
+    "Dragon legs/skirt ornament kit", "Dragon platebody ornament kit", "Dragon sq shield ornament kit"]],
+  [["Master"], "Ornaments", ["Occult ornament kit", "Torture ornament kit", "Anguish ornament kit",
+    "Tormented ornament kit", "Dragon defender ornament kit"]],
+  [["Master"], "Armour", ["Bucket helm (g)", "Ring of coins", "Lesser demon mask", "Greater demon mask",
+    "Black demon mask", "Old demon mask", "Jungle demon mask"]],
+  [HEM, "Rare", ["Gilded full helm", "Gilded platebody", "Gilded platelegs", "Gilded plateskirt", "Gilded kiteshield",
+    "Gilded boots", "Gilded scimitar", "Gilded 2h sword", "Gilded spear", "Gilded hasta", "Gilded d'hide body",
+    "Gilded d'hide chaps", "Gilded d'hide vambraces", "Gilded coif", "Gilded pickaxe", "Gilded axe",
+    "3rd age full helmet", "3rd age platebody", "3rd age platelegs", "3rd age kiteshield", "3rd age range coif",
+    "3rd age range top", "3rd age range legs", "3rd age vambraces", "3rd age mage hat", "3rd age robe top",
+    "3rd age robe", "3rd age amulet", "3rd age longsword", "3rd age bow", "3rd age wand", "3rd age cloak",
+    "3rd age pickaxe", "3rd age axe", "3rd age druidic robe top", "3rd age druidic robe bottoms",
+    "3rd age druidic staff", "3rd age druidic cloak"]]
+];
+let csortKey = "casket", cdesc = true, isortKey = "price", idesc = true;
+
+function sortRows(rows, key, desc) {
+  return rows.sort((a, b) => {
+    const x = a[key], y = b[key];
+    const c = typeof x === "string" ? x.localeCompare(y) : (x === y ? 0 : x - y);
+    return desc ? -c : c;
+  });
+}
+function headHTML(cols, key, desc) {
+  return cols.map(([k, label, cls]) =>
+    '<th scope="col"' + (cls ? ' class="' + cls + '"' : "") +
+    (k === key ? ' aria-sort="' + (desc ? "descending" : "ascending") + '"' : "") +
+    '><button type="button" data-k="' + k + '">' + label + "</button></th>").join("");
+}
+
+function renderClues() {
+  // Table 1: average loot per casket
+  const t = sortRows(CLUE_TIERS.slice(), csortKey, cdesc);
+  $("chead").innerHTML = headHTML([
+    ["tier", "Tier", "l"], ["rolls", "Rolls per casket (average)"], ["roll", "Average per roll"],
+    ["casket", "Average per casket"], ["mc", "Master clue chance"], ["note", "Notes", "l"]
+  ], csortKey, cdesc);
+  $("cbody").innerHTML = t.map(r =>
+    '<tr><td class="l">' + r.tier + "</td><td>" + r.rolls + "</td><td>" + fmt(r.roll) + '</td><td class="good">' +
+    fmt(r.casket) + "</td><td>" + (r.mc ? "1/" + Math.round(1 / r.mc) : "–") +
+    '</td><td class="l recipe">' + esc(r.note) + "</td></tr>").join("");
+
+  // Table 2: live prices of clue items
+  const tier = $("cTier").value, type = $("cType").value;
+  const minP = +$("cMin").value || 0, maxP = +$("cMax").value || 0;
+  const q = $("cSearch").value.trim().toLowerCase();
+  const top = Math.max(1, +$("top").value || 25);
+  const rows = [], noPrice = [], unknown = [];
+  if (market) {
+    for (const [tiers, kind, names] of CLUE_ITEMS) {
+      for (const n of names) {
+        const it = byName[n.toLowerCase()];
+        if (!it) { unknown.push(n); continue; }
+        const p = market.prices[it.id];
+        if (!p || (!p.high && !p.low)) { noPrice.push(it.name); continue; }
+        const price = p.high && p.low ? Math.round((p.high + p.low) / 2) : (p.high || p.low);
+        rows.push({
+          name: it.name, tiers: tiers.join(", "), tierList: tiers, type: kind, price,
+          low: p.low || 0, high: p.high || 0,
+          traded: (market.buy[it.id] || 0) + (market.sell[it.id] || 0), limit: it.limit || 0
+        });
+      }
+    }
+  }
+  let shown = rows.filter(r => (tier === "all" || r.tierList.includes(tier)) && (type === "all" || r.type === type) &&
+    r.price >= minP && (!maxP || r.price <= maxP) && (!q || r.name.toLowerCase().includes(q)));
+  shown = sortRows(shown, isortKey, idesc).slice(0, top);
+  $("ihead").innerHTML = headHTML([
+    ["name", "Item", "l"], ["tiers", "Tiers", "l"], ["type", "Type", "l"], ["price", "Price"], ["low", "Low"],
+    ["high", "High"], ["traded", "Traded in " + winH + "h"], ["limit", "Buy limit"]
+  ], isortKey, idesc);
+  $("ibody").innerHTML = shown.length ? shown.map(r =>
+    '<tr><td class="l">' + esc(r.name) + '</td><td class="l">' + r.tiers + '</td><td class="l">' + r.type +
+    '</td><td class="good">' + fmt(r.price) + "</td><td>" + (r.low ? fmt(r.low) : "–") + "</td><td>" +
+    (r.high ? fmt(r.high) : "–") + "</td><td>" + fmt(r.traded) + "</td><td>" + (r.limit ? fmt(r.limit) : "?") +
+    "</td></tr>").join("")
+    : '<tr><td colspan="8" style="text-align:center;color:var(--muted)">' +
+      (market ? "No items match your filters." : "No prices loaded yet.") + "</td></tr>";
+  $("imissing").textContent = (unknown.length ? "Names not found in the item list: " + unknown.join(", ") + ". " : "") +
+    (noPrice.length ? noPrice.length + " items have no recent trades in this world." : "");
+}
+
+$("chead").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]");
+  if (!b) return;
+  const k = b.dataset.k;
+  if (k === csortKey) cdesc = !cdesc; else { csortKey = k; cdesc = !["tier", "note"].includes(k); }
+  renderClues();
+});
+$("ihead").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]");
+  if (!b) return;
+  const k = b.dataset.k;
+  if (k === isortKey) idesc = !idesc; else { isortKey = k; idesc = !["name", "tiers", "type"].includes(k); }
+  renderClues();
+});
+["cTier", "cType", "cMin", "cMax", "cSearch"].forEach(id => $(id).addEventListener("input", renderClues));
+$("tab-clue").addEventListener("click", () => showTab("clue"));
+
+function renderAll() { render(); renderProd(); renderClues(); }
 
 function showTab(which) {
-  for (const t of ["flip", "prod"]) {
+  for (const t of ["flip", "prod", "clue"]) {
     $("tab-" + t).setAttribute("aria-selected", String(t === which));
     $("panel-" + t).hidden = t !== which;
   }
