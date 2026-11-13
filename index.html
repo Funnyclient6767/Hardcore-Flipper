@@ -74,7 +74,9 @@ td.recipe{white-space:normal;min-width:220px;color:var(--muted)}
 td.recipe .nm{margin:2px 0}
 td.recipe .ico{width:26px;height:24px}
 .ctitle{font:500 1.2rem/1.3 var(--head);color:var(--orange);text-shadow:1px 1px 0 #000;margin:24px 0 8px}
-input.wide{width:190px}
+input.wide{width:260px;max-width:100%}
+label.chk{flex-direction:row;align-items:center;gap:8px;padding-bottom:8px}
+input[type=checkbox]{width:auto;accent-color:#c9972b}
 </style>
 </head>
 <body>
@@ -113,6 +115,7 @@ input.wide{width:190px}
     <button type="button" role="tab" id="tab-flip" aria-selected="true" aria-controls="panel-flip">Flips</button>
     <button type="button" role="tab" id="tab-prod" aria-selected="false" aria-controls="panel-prod">Production</button>
     <button type="button" role="tab" id="tab-clue" aria-selected="false" aria-controls="panel-clue">Clues</button>
+    <button type="button" role="tab" id="tab-search" aria-selected="false" aria-controls="panel-search">Search</button>
   </div>
 
   <section id="panel-flip" role="tabpanel" aria-labelledby="tab-flip">
@@ -218,6 +221,22 @@ input.wide{width:190px}
       </table>
     </div>
     <p class="note">Prices are from the world you picked above and show the middle of the buy and sell price. Only a selection of the better known clue items is listed. “Shared” items, such as god pages and blessings, can drop from any tier from easy up. Items with no recent trades in this world aren’t shown. <span id="imissing"></span></p>
+  </section>
+  <section id="panel-search" role="tabpanel" aria-labelledby="tab-search" hidden>
+    <div class="filters">
+      <label>Search for an item
+        <input id="sQuery" class="wide" type="search" placeholder="e.g. abyssal whip" autocomplete="off">
+      </label>
+      <label class="chk"><input id="sOnly" type="checkbox"> Only items with open offers</label>
+    </div>
+    <p class="note" id="smsg" style="margin-top:0">Type at least two letters to search.</p>
+    <div class="tablewrap" style="margin-top:12px">
+      <table style="min-width:860px">
+        <thead><tr id="shead"></tr></thead>
+        <tbody id="sbody"></tbody>
+      </table>
+    </div>
+    <p class="note">Price, low and high come from the wiki prices for the world you picked above, and price is the middle of low and high. The offer columns are the open Grand Exchange offers on the Hardcore Worlds from the <a href="https://hcwtoolkit.com/docs/guide" target="_blank" rel="noopener" style="color:var(--orange)">Hardcore World Tool Kit</a>, which only knows about offers seen by players using its plugin, so an item can have offers it hasn’t seen. Its offer prices are adjusted to line up with the market, and offers are refreshed about once a minute. Offers are always for the Hardcore Worlds, even if you switch the page to the main game.</p>
   </section>
 </main>
 
@@ -645,10 +664,89 @@ $("ihead").addEventListener("click", e => {
 ["cTier", "cType", "cMin", "cMax", "cSearch"].forEach(id => $(id).addEventListener("input", renderClues));
 $("tab-clue").addEventListener("click", () => showTab("clue"));
 
-function renderAll() { render(); renderProd(); renderClues(); }
+
+// ---------- Search tab ----------
+const HCW = "https://hcwtoolkit.com/v1/";
+const offerCache = new Map();
+let searchSeq = 0, searchTimer = null, searchRows = [], ssortKey = "price", sdesc = true;
+
+async function fetchOffers(ids) {
+  const now = Date.now();
+  const need = ids.filter(id => !offerCache.has(id) || now - offerCache.get(id).at > 60000);
+  for (let i = 0; i < need.length; i += 100) {
+    const chunk = need.slice(i, i + 100);
+    const r = await fetch(HCW + "items?ids=" + chunk.join(","));
+    if (!r.ok) throw new Error("The offers service answered " + r.status +
+      (r.status === 429 || r.status === 503 ? " (it is busy, try again in a minute)" : "") + ".");
+    const j = await r.json();
+    for (const id of chunk) offerCache.set(id, { at: now, d: null });
+    for (const it of j.items || []) offerCache.set(it.id, { at: now, d: it });
+  }
+}
+
+async function runSearch() {
+  const q = $("sQuery").value.trim().toLowerCase();
+  const msg = $("smsg"), seq = ++searchSeq;
+  if (q.length < 2) { searchRows = []; drawSearch(); msg.textContent = "Type at least two letters to search."; return; }
+  if (!market || !mapping) { searchRows = []; drawSearch(); msg.textContent = "Prices are still loading."; return; }
+  const price = it => { const p = market.prices[it.id]; return p ? (p.high || p.low || 0) : 0; };
+  const matches = Object.values(mapping).filter(it => it.name.toLowerCase().includes(q));
+  matches.sort((a, b) => (a.name.toLowerCase().startsWith(q) ? 0 : 1) - (b.name.toLowerCase().startsWith(q) ? 0 : 1) ||
+    price(b) - price(a));
+  const cand = matches.slice(0, 100);
+  msg.textContent = "Searching…";
+  let offerErr = "";
+  try { await fetchOffers(cand.map(it => it.id)); } catch (e) { offerErr = "Couldn’t load offers. " + e.message; }
+  if (seq !== searchSeq) return;
+  searchRows = cand.map(it => {
+    const p = market.prices[it.id] || {};
+    const o = (offerCache.get(it.id) || {}).d || {};
+    const low = p.low || 0, high = p.high || 0, bid = o.bestBid || 0, ask = o.bestAsk || 0;
+    return {
+      name: it.name, icon: it.icon, price: low && high ? Math.round((low + high) / 2) : (low || high), low, high,
+      bid, bids: o.bids || 0, bidQty: o.bidQty || 0, ask, asks: o.asks || 0, askQty: o.askQty || 0,
+      gap: bid && ask ? ask - bid : 0
+    };
+  });
+  msg.textContent = matches.length + (matches.length === 1 ? " item matches" : " items match") +
+    (matches.length > 100 ? ", showing the closest 100" : "") + "." + (offerErr ? " " + offerErr : "");
+  drawSearch();
+}
+
+function drawSearch() {
+  const top = Math.min(200, Math.max(1, +$("top").value || 25));
+  let rows = searchRows.filter(r => !$("sOnly").checked || r.bids + r.asks > 0);
+  rows = sortRows(rows.slice(), ssortKey, sdesc).slice(0, top);
+  $("shead").innerHTML = headHTML([
+    ["name", "Item", "l"], ["price", "Price"], ["low", "Low"], ["high", "High"],
+    ["bid", "Highest buy offer"], ["bids", "Buy offers (items)"],
+    ["ask", "Lowest sell offer"], ["asks", "Sell offers (items)"], ["gap", "Gap between offers"]
+  ], ssortKey, sdesc);
+  const dash = n => n ? fmt(n) : "–";
+  const cnt = (n, q) => n ? n + " (" + fmt(q) + ")" : "–";
+  $("sbody").innerHTML = rows.length ? rows.map(r =>
+    "<tr><td>" + nm(r.name, r.icon) + "</td><td>" + dash(r.price) + "</td><td>" + dash(r.low) + "</td><td>" + dash(r.high) +
+    "</td><td>" + dash(r.bid) + "</td><td>" + cnt(r.bids, r.bidQty) + "</td><td>" + dash(r.ask) + "</td><td>" +
+    cnt(r.asks, r.askQty) + "</td><td>" + dash(r.gap) + "</td></tr>").join("")
+    : '<tr><td colspan="9" style="text-align:center;color:var(--muted)">' +
+      (searchRows.length ? "No items with open offers." : "Nothing to show yet.") + "</td></tr>";
+}
+
+$("sQuery").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 350); });
+$("sOnly").addEventListener("change", drawSearch);
+$("shead").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]");
+  if (!b) return;
+  const k = b.dataset.k;
+  if (k === ssortKey) sdesc = !sdesc; else { ssortKey = k; sdesc = k !== "name"; }
+  drawSearch();
+});
+$("tab-search").addEventListener("click", () => showTab("search"));
+
+function renderAll() { render(); renderProd(); renderClues(); if ($("sQuery").value.trim()) runSearch(); else drawSearch(); }
 
 function showTab(which) {
-  for (const t of ["flip", "prod", "clue"]) {
+  for (const t of ["flip", "prod", "clue", "search"]) {
     $("tab-" + t).setAttribute("aria-selected", String(t === which));
     $("panel-" + t).hidden = t !== which;
   }
