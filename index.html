@@ -69,6 +69,10 @@ td.good{color:var(--good);font-weight:700;text-shadow:1px 1px 0 #000}
 td.old{color:var(--warn)}
 td.recipe{white-space:normal;min-width:220px;color:var(--muted)}
 .note{color:var(--muted);font-size:.88rem;margin-top:16px;max-width:75ch}
+.nm{display:inline-flex;align-items:center;gap:8px;vertical-align:middle}
+.ico{flex:none;width:36px;height:32px;object-fit:contain;display:inline-block}
+td.recipe .nm{margin:2px 0}
+td.recipe .ico{width:26px;height:24px}
 .ctitle{font:500 1.2rem/1.3 var(--head);color:var(--orange);text-shadow:1px 1px 0 #000;margin:24px 0 8px}
 input.wide{width:190px}
 </style>
@@ -194,7 +198,7 @@ input.wide{width:190px}
       <label>Type
         <select id="cType">
           <option value="all">All types</option>
-          <option>Armour</option><option>Weapons</option><option>Ornaments</option><option>Rare</option>
+          <option>Armour</option><option>Weapons</option><option>Ornaments</option><option>Rare</option><option>Shared</option>
         </select>
       </label>
       <label>Minimum price (gp)
@@ -213,7 +217,7 @@ input.wide{width:190px}
         <tbody id="ibody"></tbody>
       </table>
     </div>
-    <p class="note">Prices are from the world you picked above and show the middle of the buy and sell price. Only a selection of the better known clue items is listed. Items with no recent trades in this world aren’t shown. <span id="imissing"></span></p>
+    <p class="note">Prices are from the world you picked above and show the middle of the buy and sell price. Only a selection of the better known clue items is listed. “Shared” items, such as god pages and blessings, can drop from any tier from easy up. Items with no recent trades in this world aren’t shown. <span id="imissing"></span></p>
   </section>
 </main>
 
@@ -223,6 +227,11 @@ const HC = "https://prices.runescape.wiki/api/v2/osrs-hc/";
 const $ = id => document.getElementById(id);
 const fmt = n => Number(n).toLocaleString("en-GB");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const iconURL = ic => "https://oldschool.runescape.wiki/images/" + encodeURIComponent(ic.replace(/ /g, "_"));
+const img = ic => ic
+  ? '<img class="ico" src="' + esc(iconURL(ic)) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
+  : '<span class="ico"></span>';
+const nm = (name, ic) => '<span class="nm">' + img(ic) + "<span>" + esc(name) + "</span></span>";
 const hourly = new Map();
 
 let mapping = null, all = [], winH = 4, sortKey = "total", desc = true;
@@ -283,7 +292,7 @@ async function load() {
       if (margin <= 0) continue;
       const oldest = Math.min(p.highTime || 0, p.lowTime || 0);
       all.push({
-        name: it.name, buy: p.low, sell: p.high, margin,
+        name: it.name, icon: it.icon, buy: p.low, sell: p.high, margin,
         roi: margin / p.low * 100,
         volume: Math.min(buySide[id] || 0, sellSide[id] || 0),
         limit: it.limit || 0,
@@ -361,7 +370,7 @@ function render() {
     '<th scope="col"' + (k === sortKey ? ' aria-sort="' + (desc ? "descending" : "ascending") + '"' : "") +
     '><button type="button" data-k="' + k + '">' + label + "</button></th>").join("");
   $("body").innerHTML = rows.length ? rows.map(r =>
-    "<tr><td>" + esc(r.name) + "</td><td>" + fmt(r.buy) + "</td><td>" + fmt(r.sell) +
+    "<tr><td>" + nm(r.name, r.icon) + "</td><td>" + fmt(r.buy) + "</td><td>" + fmt(r.sell) +
     '</td><td class="good">' + fmt(r.margin) + "</td><td>" + r.roi.toFixed(1) + "%</td><td>" +
     fmt(r.volume) + "</td><td>" + (r.limit ? fmt(r.limit) : "?") +
     '</td><td' + (r.age > 3600 ? ' class="old"' : "") + ">" + fmtAge(r.age) +
@@ -453,8 +462,10 @@ function renderProd() {
       if (profit <= 0) continue;
       const afford = budget ? Math.min(crafts, Math.floor(budget / cost)) : crafts;
       list.push({
-        name: out.name + (r.out[1] > 1 ? " ×" + r.out[1] : ""), skill: r.skill,
+        name: out.name + (r.out[1] > 1 ? " ×" + r.out[1] : ""), icon: out.icon, skill: r.skill,
         recipe: ins.map(x => (x.q > 1 ? x.q + " × " : "") + x.it.name).join(" + "),
+        recipeHTML: ins.map(x => '<span class="nm">' + (x.q > 1 ? x.q + " ×" : "") + img(x.it.icon) +
+          "<span>" + esc(x.it.name) + "</span></span>").join(" + "),
         cost, net, profit, roi: profit / cost * 100, crafts, total: profit * Math.max(afford, 0), afford
       });
     }
@@ -489,8 +500,8 @@ function renderProd() {
     (k === psortKey ? ' aria-sort="' + (pdesc ? "descending" : "ascending") + '"' : "") +
     '><button type="button" data-k="' + k + '">' + label + "</button></th>").join("");
   $("pbody").innerHTML = rows.length ? rows.map(r =>
-    '<tr><td class="l">' + esc(r.name) + '</td><td class="l">' + r.skill + '</td><td class="l recipe">' +
-    esc(r.recipe) + "</td><td>" + fmt(Math.round(r.cost)) + "</td><td>" + fmt(Math.round(r.net)) +
+    '<tr><td class="l">' + nm(r.name, r.icon) + '</td><td class="l">' + r.skill + '</td><td class="l recipe">' +
+    r.recipeHTML + "</td><td>" + fmt(Math.round(r.cost)) + "</td><td>" + fmt(Math.round(r.net)) +
     '</td><td class="good">' + fmt(Math.round(r.profit)) + "</td><td>" + r.roi.toFixed(1) + "%</td><td>" +
     fmt(r.crafts) + "</td><td>" + fmt(Math.round(r.total)) + "</td></tr>").join("")
     : '<tr><td colspan="9" style="text-align:center;color:var(--muted)">No profitable makes to show.</td></tr>';
@@ -510,19 +521,23 @@ const CLUE_TIERS = [
   ["Master", 6, 118600, 711500, 0, "About 959,000 with a Mimic. 3rd age items make up much of this."]
 ].map(([tier, rolls, roll, casket, mc, note]) => ({ tier, rolls, roll, casket, mc, note }));
 const HEM = ["Hard", "Elite", "Master"];
+const ALL_TIERS = ["Easy", "Medium", "Hard", "Elite", "Master"];
 const CLUE_ITEMS = [
   [["Easy"], "Armour", ["Black platebody (t)", "Black platelegs (t)", "Black full helm (t)", "Black kiteshield (t)",
-    "Black platebody (g)", "Black platelegs (g)", "Black full helm (g)", "Black kiteshield (g)"]],
+    "Black platebody (g)", "Black platelegs (g)", "Black full helm (g)", "Black kiteshield (g)",
+    "Highwayman mask", "Blue beret", "Black beret", "White beret"]],
   [["Medium"], "Armour", ["Ranger boots", "Wizard boots", "Adamant platebody (t)", "Adamant platelegs (t)",
     "Adamant full helm (t)", "Adamant kiteshield (t)", "Adamant platebody (g)", "Adamant platelegs (g)",
     "Adamant full helm (g)", "Adamant kiteshield (g)", "Green d'hide body (g)", "Green d'hide chaps (g)",
-    "Blue d'hide body (g)", "Blue d'hide chaps (g)", "Highwayman mask", "Black cavalier", "Dark cavalier", "Tan cavalier"]],
+    "Blue d'hide body (g)", "Blue d'hide chaps (g)", "Adamant plateskirt (t)", "Adamant plateskirt (g)",
+    "Red headband", "Black headband", "Brown headband"]],
   [["Hard"], "Armour", ["Rune platebody (t)", "Rune platelegs (t)", "Rune full helm (t)", "Rune kiteshield (t)",
     "Rune plateskirt (t)", "Rune platebody (g)", "Rune platelegs (g)", "Rune full helm (g)", "Rune kiteshield (g)",
     "Rune plateskirt (g)", "Saradomin full helm", "Saradomin platebody", "Saradomin platelegs", "Saradomin kiteshield",
     "Zamorak full helm", "Zamorak platebody", "Zamorak platelegs", "Zamorak kiteshield", "Guthix full helm",
     "Guthix platebody", "Guthix platelegs", "Guthix kiteshield", "Robin hood hat", "Amulet of glory (t4)",
-    "Enchanted hat", "Enchanted top", "Enchanted robe"]],
+    "Enchanted hat", "Enchanted top", "Enchanted robe", "Tan cavalier", "Dark cavalier", "Black cavalier",
+    "Pirate's hat", "Zamorak plateskirt", "Saradomin plateskirt", "Guthix plateskirt"]],
   [["Hard"], "Weapons", ["Magic comp bow"]],
   [["Elite"], "Armour", ["Royal crown"]],
   [["Elite"], "Weapons", ["Royal sceptre"]],
@@ -539,7 +554,11 @@ const CLUE_ITEMS = [
     "3rd age range top", "3rd age range legs", "3rd age vambraces", "3rd age mage hat", "3rd age robe top",
     "3rd age robe", "3rd age amulet", "3rd age longsword", "3rd age bow", "3rd age wand", "3rd age cloak",
     "3rd age pickaxe", "3rd age axe", "3rd age druidic robe top", "3rd age druidic robe bottoms",
-    "3rd age druidic staff", "3rd age druidic cloak"]]
+    "3rd age druidic staff", "3rd age druidic cloak"]],
+  [ALL_TIERS, "Shared", [
+    ...["Saradomin", "Zamorak", "Guthix", "Bandos", "Armadyl", "Ancient"].flatMap(g => [1, 2, 3, 4].map(n => g + " page " + n)),
+    "Holy blessing", "Unholy blessing", "Peaceful blessing", "Honourable blessing", "War blessing", "Ancient blessing"
+  ], "Easy to Master"]
 ];
 let csortKey = "casket", cdesc = true, isortKey = "price", idesc = true;
 
@@ -576,7 +595,7 @@ function renderClues() {
   const top = Math.max(1, +$("top").value || 25);
   const rows = [], noPrice = [], unknown = [];
   if (market) {
-    for (const [tiers, kind, names] of CLUE_ITEMS) {
+    for (const [tiers, kind, names, label] of CLUE_ITEMS) {
       for (const n of names) {
         const it = byName[n.toLowerCase()];
         if (!it) { unknown.push(n); continue; }
@@ -584,7 +603,7 @@ function renderClues() {
         if (!p || (!p.high && !p.low)) { noPrice.push(it.name); continue; }
         const price = p.high && p.low ? Math.round((p.high + p.low) / 2) : (p.high || p.low);
         rows.push({
-          name: it.name, tiers: tiers.join(", "), tierList: tiers, type: kind, price,
+          name: it.name, icon: it.icon, tiers: label || tiers.join(", "), tierList: tiers, type: kind, price,
           low: p.low || 0, high: p.high || 0,
           traded: (market.buy[it.id] || 0) + (market.sell[it.id] || 0), limit: it.limit || 0
         });
@@ -599,7 +618,7 @@ function renderClues() {
     ["high", "High"], ["traded", "Traded in " + winH + "h"], ["limit", "Buy limit"]
   ], isortKey, idesc);
   $("ibody").innerHTML = shown.length ? shown.map(r =>
-    '<tr><td class="l">' + esc(r.name) + '</td><td class="l">' + r.tiers + '</td><td class="l">' + r.type +
+    '<tr><td class="l">' + nm(r.name, r.icon) + '</td><td class="l">' + r.tiers + '</td><td class="l">' + r.type +
     '</td><td class="good">' + fmt(r.price) + "</td><td>" + (r.low ? fmt(r.low) : "–") + "</td><td>" +
     (r.high ? fmt(r.high) : "–") + "</td><td>" + fmt(r.traded) + "</td><td>" + (r.limit ? fmt(r.limit) : "?") +
     "</td></tr>").join("")
