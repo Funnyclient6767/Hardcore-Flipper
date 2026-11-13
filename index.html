@@ -236,7 +236,7 @@ input[type=checkbox]{width:auto;accent-color:#c9972b}
         <tbody id="sbody"></tbody>
       </table>
     </div>
-    <p class="note">Price, low and high come from the wiki prices for the world you picked above, and price is the middle of low and high. The offer columns are the open Grand Exchange offers on the Hardcore Worlds from the <a href="https://hcwtoolkit.com/docs/guide" target="_blank" rel="noopener" style="color:var(--orange)">Hardcore World Tool Kit</a>, which only knows about offers seen by players using its plugin, so an item can have offers it hasn’t seen. Offer prices are the actual listed prices where the Tool Kit has them, and offers are refreshed about once a minute. Offers are always for the Hardcore Worlds, even if you switch the page to the main game.</p>
+    <p class="note">Price, low and high come from the wiki prices for the world you picked above, and price is the middle of low and high. The offer columns are the open Grand Exchange offers on the Hardcore Worlds from the <a href="https://hcwtoolkit.com/docs/guide" target="_blank" rel="noopener" style="color:var(--orange)">Hardcore World Tool Kit</a>, which only knows about offers seen by players using its plugin, so an item can have offers it hasn’t seen. Offers are read from each item’s order book at the Tool Kit, so the best prices and counts should match the open offers shown on its own site. Only the closest 20 matches are looked up, one request each, and they’re remembered for a minute. Offers are always for the Hardcore Worlds, even if you switch the page to the main game.</p>
   </section>
 </main>
 
@@ -673,15 +673,24 @@ let searchSeq = 0, searchTimer = null, searchRows = [], ssortKey = "price", sdes
 async function fetchOffers(ids) {
   const now = Date.now();
   const need = ids.filter(id => !offerCache.has(id) || now - offerCache.get(id).at > 60000);
-  for (let i = 0; i < need.length; i += 100) {
-    const chunk = need.slice(i, i + 100);
-    const r = await fetch(HCW + "items?include=trust&ids=" + chunk.join(","));
-    if (!r.ok) throw new Error("The offers service answered " + r.status +
-      (r.status === 429 || r.status === 503 ? " (it is busy, try again in a minute)" : "") + ".");
-    const j = await r.json();
-    for (const id of chunk) offerCache.set(id, { at: now, d: null });
-    for (const it of j.items || []) offerCache.set(it.id, { at: now, d: it });
+  let failed = 0;
+  const sum = (a, k) => (a || []).reduce((t, l) => t + (l[k] || 0), 0);
+  for (let i = 0; i < need.length; i += 5) {
+    await Promise.all(need.slice(i, i + 5).map(async id => {
+      try {
+        const r = await fetch(HCW + "item/" + id + "?limit=1&include=trust");
+        if (r.status === 404) { offerCache.set(id, { at: now, d: null }); return; }
+        if (!r.ok) throw new Error(String(r.status));
+        const b = (await r.json()).book || {};
+        offerCache.set(id, { at: now, d: {
+          bid: ((b.bids || [])[0] || {}).price, ask: ((b.asks || [])[0] || {}).price,
+          bids: sum(b.bids, "offers"), bidQty: sum(b.bids, "qty"),
+          asks: sum(b.asks, "offers"), askQty: sum(b.asks, "qty")
+        } });
+      } catch (e) { failed++; }
+    }));
   }
+  if (failed) throw new Error(failed + " of " + need.length + " lookups failed. The offers service may be busy, so try again in a minute.");
 }
 
 async function runSearch() {
@@ -693,7 +702,7 @@ async function runSearch() {
   const matches = Object.values(mapping).filter(it => it.name.toLowerCase().includes(q));
   matches.sort((a, b) => (a.name.toLowerCase().startsWith(q) ? 0 : 1) - (b.name.toLowerCase().startsWith(q) ? 0 : 1) ||
     price(b) - price(a));
-  const cand = matches.slice(0, 100);
+  const cand = matches.slice(0, 20);
   msg.textContent = "Searching…";
   let offerErr = "";
   try { await fetchOffers(cand.map(it => it.id)); } catch (e) { offerErr = "Couldn’t load offers. " + e.message; }
@@ -701,7 +710,7 @@ async function runSearch() {
   searchRows = cand.map(it => {
     const p = market.prices[it.id] || {};
     const o = (offerCache.get(it.id) || {}).d || {};
-    const low = p.low || 0, high = p.high || 0, bid = o.trustedBestBid || o.bestBid || 0, ask = o.trustedBestAsk || o.bestAsk || 0;
+    const low = p.low || 0, high = p.high || 0, bid = o.bid || 0, ask = o.ask || 0;
     return {
       name: it.name, icon: it.icon, price: low && high ? Math.round((low + high) / 2) : (low || high), low, high,
       bid, bids: o.bids || 0, bidQty: o.bidQty || 0, ask, asks: o.asks || 0, askQty: o.askQty || 0,
@@ -709,7 +718,7 @@ async function runSearch() {
     };
   });
   msg.textContent = matches.length + (matches.length === 1 ? " item matches" : " items match") +
-    (matches.length > 100 ? ", showing the closest 100" : "") + "." + (offerErr ? " " + offerErr : "");
+    (matches.length > 20 ? ", showing the closest 20" : "") + "." + (offerErr ? " " + offerErr : "");
   drawSearch();
 }
 
