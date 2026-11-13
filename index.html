@@ -675,6 +675,7 @@ async function fetchOffers(ids) {
   const need = ids.filter(id => !offerCache.has(id) || now - offerCache.get(id).at > 60000);
   let failed = 0;
   const sum = (a, k) => (a || []).reduce((t, l) => t + (l[k] || 0), 0);
+  const best = (a, f) => { const v = (a || []).map(l => l.price).filter(Boolean); return v.length ? f(...v) : undefined; };
   for (let i = 0; i < need.length; i += 5) {
     await Promise.all(need.slice(i, i + 5).map(async id => {
       try {
@@ -683,7 +684,7 @@ async function fetchOffers(ids) {
         if (!r.ok) throw new Error(String(r.status));
         const b = (await r.json()).book || {};
         offerCache.set(id, { at: now, d: {
-          bid: ((b.bids || [])[0] || {}).price, ask: ((b.asks || [])[0] || {}).price,
+          bid: best(b.bids, Math.max), ask: best(b.asks, Math.min),
           bids: sum(b.bids, "offers"), bidQty: sum(b.bids, "qty"),
           asks: sum(b.asks, "offers"), askQty: sum(b.asks, "qty")
         } });
